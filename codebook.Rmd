@@ -1,0 +1,203 @@
+---
+title: "Codebook"
+author: "Rezwan Ahmed"
+date: "Friday, June 19, 2015"
+output:
+  html_document:
+    keep_md: yes
+---
+
+## The Data
+The experiments have been carried out with a group of 30 volunteers within an 
+age bracket of 19-48 years. Each person performed six activities (WALKING, 
+WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING) wearing a 
+smartphone (Samsung Galaxy S II) on the waist. Using its embedded accelerometer 
+and gyroscope, we captured 3-axial linear acceleration and 3-axial angular 
+velocity at a constant rate of 50Hz. The experiments have been video-recorded 
+to label the data manually. The obtained dataset has been randomly partitioned 
+into two sets, where 70% of the volunteers was selected for generating the 
+training data and 30% the test data. 
+
+Data for the project: 
+https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip 
+
+Original description of the dataset: 
+http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones
+
+## The variables 
+
+The following list of features are captured as part of the data to evaluate
+each subjects activity.
+
+```{r}
+features <- read.table("UCI HAR Dataset/features.txt")
+features[2]
+```
+
+
+The following list of activities were performed:
+```{r}
+activities <- read.table("UCI HAR Dataset/activity_labels.txt", header = FALSE)
+activities[2]
+```
+
+
+## Transformations to clean up the data 
+
+The following are the steps taken to clean up the data:
+
+```{r,echo=FALSE}
+library(data.table)
+library(dplyr)
+```
+
+#### 1. Merge the training and the test sets to create one data set.
+
+Reading all train data
+```{r}
+trainSubject <- read.table("UCI HAR Dataset/train/subject_train.txt", header = FALSE)
+trainX <- read.table("UCI HAR Dataset/train/X_train.txt", header = FALSE)
+trainY <- read.table("UCI HAR Dataset/train/y_train.txt", header = FALSE)
+```
+
+Reading all test data
+```{r}
+testSubject <- read.table("UCI HAR Dataset/test/subject_test.txt", header = FALSE)
+testX <- read.table("UCI HAR Dataset/test/X_test.txt", header = FALSE)
+testY <- read.table("UCI HAR Dataset/test/y_test.txt", header = FALSE)
+```
+
+Merging train and test data for each item
+```{r}
+allSubject <- rbind(trainSubject, testSubject)
+allX <- rbind(trainX, testX)
+allY <- rbind(trainY, testY)
+```
+
+Loading the feature (X) names and activity (Y) labels and using the second 
+column of the features data frame as the feature labels
+```{r}
+features <- read.table("UCI HAR Dataset/features.txt")
+labelX <- t(features[2])
+```
+
+Setting all the column labels
+```{r}
+colnames(allX) <- labelX
+colnames(allY) <- "ActivityID"
+colnames(allSubject) <- "SubjectID"
+```
+
+The combined dataset
+```{r}
+combinedData <- cbind(allSubject,allX,allY)
+```
+
+The dimenstion of the combined data:
+```{r}
+dim(combinedData)
+```
+
+#### 2. Extract only the measurements on the mean and standard deviation for each measurement. 
+
+First separate the features with mean and std. dev in their name
+```{r}
+cnames <- names(allX)
+extCols <- grep(".*Mean.*|.*Std.*", cnames, , ignore.case=TRUE)
+extX <- allX[,extCols]
+```
+
+Subset of the data
+```{r}
+subsetData <- cbind(allSubject, extX, allY)
+```
+
+The dimenstion of the extracted data:
+```{r}
+dim(subsetData)
+```
+
+#### 3. Use descriptive activity names to name the activities in the data set 
+
+Loading the activity labels included in the dataset
+```{r}
+activities <- read.table("UCI HAR Dataset/activity_labels.txt", header = FALSE)
+nactivity <- nrow(activities)
+activities[2]
+```
+
+Replacing the Activity IDs from the dataset with actual activity labels.
+```{r}
+tempActIDs <- as.character(subsetData$ActivityID)
+for (i in 1:nactivity){
+    tempActIDs[tempActIDs[] == i] <- as.character(activities[i,2])
+}
+subsetData$ActivityID <- as.factor(tempActIDs)
+```
+
+
+Changing the name of the column from ActivityID to Activity
+```{r}
+ncols <- ncol(subsetData)
+colnames(subsetData)[ncols] <- "Activity"
+```
+
+The different types of activities captured as a factor of the Activity column
+```{r}
+levels(subsetData$Activity)
+```
+
+#### 4. Appropriately labels the data set with descriptive variable names.  
+
+Original labels of the features:
+```{r}
+names(subsetData)
+```
+
+Replacing "t" with "Time"
+```{r}
+names(subsetData) <- gsub("^t", "Time", names(subsetData))
+```
+
+Replacing "f" with "Freq"
+```{r}
+names(subsetData) <- gsub("^f", "Freq", names(subsetData))
+```
+
+Replacing "Mag" with "Magnitude"
+```{r}
+names(subsetData) <- gsub("Mag", "Magnitude", names(subsetData))
+```
+
+Replacing "BodyBody" with "Body"
+```{r}
+names(subsetData) <- gsub("BodyBody", "Body", names(subsetData))
+```
+
+Replacing "Acc" with "Accelerometer"
+```{r}
+names(subsetData) <- gsub("Acc", "Accelerometer", names(subsetData))
+```
+
+Replacing "tBody" with "TimeBody"
+```{r}
+names(subsetData) <- gsub("tBody", "TimeBody", names(subsetData))
+```
+
+Updated labels of the features:
+```{r}
+names(subsetData)
+```
+
+#### 5. From the data set in step 4, create a second, independent tidy data set with the average of each variable for each activity and each subject. 
+
+```{r}
+tidyData<-aggregate(. ~SubjectID + Activity, subsetData, mean)
+tidyData<-tidyData[order(tidyData$SubjectID,tidyData$Activity),]
+head(tidyData, n=10)
+```
+
+Saving the tidy data to a file.
+```{r}
+write.table(tidyData, file="TidyData.txt", row.names = FALSE)
+```
